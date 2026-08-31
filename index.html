@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartRuleAI — Declarative Security Reasoning</title>
+<meta name="description" content="A rule-based cybersecurity chatbot that shows its work: symbolic facts, declarative rules, and a live forward-chaining reasoning trace.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230D1418%22/><path d=%22M30 55 L45 70 L72 35%22 stroke=%22%234FD1C5%22 stroke-width=%229%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail rail-left">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
+        <rect width="100" height="100" rx="22" fill="var(--surface-raised)"/>
+        <path d="M30 55 L45 70 L72 35" stroke="var(--accent)" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">SmartRuleAI</span>
+        <span class="brand-tag">declarative reasoning console</span>
+      </div>
+    </div>
+
+    <div class="status" id="statusReadout">
+      <div class="status-row"><span class="status-num" id="statFacts">–</span><span class="status-label">facts</span></div>
+      <div class="status-row"><span class="status-num" id="statRules">–</span><span class="status-label">rules</span></div>
+      <div class="status-row"><span class="status-num" id="statDerived">–</span><span class="status-label">derived so far</span></div>
+    </div>
+
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Tools">
+      <button class="tab active" data-panel="panel-chat" role="tab" aria-selected="true">
+        <span class="tab-icon">💬</span> Chat
+      </button>
+      <button class="tab" data-panel="panel-checklist" role="tab" aria-selected="false">
+        <span class="tab-icon">✅</span> Security checklist
+      </button>
+      <button class="tab" data-panel="panel-kb" role="tab" aria-selected="false">
+        <span class="tab-icon">📚</span> Knowledge base
+      </button>
+      <button class="tab" data-panel="panel-rules" role="tab" aria-selected="false">
+        <span class="tab-icon">🔗</span> Rule base
+      </button>
+      <button class="tab" data-panel="panel-history" role="tab" aria-selected="false">
+        <span class="tab-icon">🕘</span> History
+      </button>
+    </nav>
+
+    <div class="quick-block">
+      <div class="quick-title">Try asking</div>
+      <div class="quick-chips" id="quickChips"><!-- filled by JS --></div>
+      <button class="ghost-btn" id="tipBtn" type="button">🎲 Random security tip</button>
+    </div>
+
+    <div class="rail-footer">Every answer is explainable — no black box.</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open menu">☰</button>
+        <h1 class="topbar-title" id="panelTitle">Chat</h1>
+      </div>
+      <button class="trace-toggle" id="traceToggle" type="button">Reasoning trace</button>
+    </header>
+
+    <!-- ---- CHAT PANEL ---- -->
+    <section class="panel active" id="panel-chat">
+      <div class="chat-scroll" id="chatScroll" aria-live="polite"></div>
+      <form class="composer" id="chatForm" autocomplete="off">
+        <input type="text" id="chatInput" placeholder="Ask about passwords, phishing, VPNs, backups…" aria-label="Message">
+        <button type="submit" class="send-btn">Send</button>
+      </form>
+    </section>
+
+    <!-- ---- CHECKLIST PANEL ---- -->
+    <section class="panel" id="panel-checklist">
+      <div class="panel-scroll">
+        <p class="panel-intro">Answer honestly — every response is fed straight into the same forward-chaining engine used in chat, so your score comes from real declarative reasoning, not a hidden formula.</p>
+        <form id="checklistForm" class="checklist-form"><!-- filled by JS --></form>
+        <div id="checklistResult" class="checklist-result" hidden></div>
+      </div>
+    </section>
+
+    <!-- ---- KNOWLEDGE BASE PANEL ---- -->
+    <section class="panel" id="panel-kb">
+      <div class="panel-scroll">
+        <p class="panel-intro">The declarative Knowledge Base: every fact/concept SmartRuleAI can recognize, with the keywords that trigger it.</p>
+        <div class="kb-toolbar">
+          <input type="search" id="factSearch" placeholder="Filter facts…">
+          <button class="ghost-btn" id="addFactBtn" type="button">+ Add fact</button>
+        </div>
+        <form id="addFactForm" class="inline-form" hidden>
+          <input type="text" id="factConcept" placeholder="concept_key (e.g. secure_dns)" required>
+          <input type="text" id="factStatement" placeholder="Statement shown to the user" required>
+          <input type="text" id="factKeywords" placeholder="keywords, comma, separated">
+          <select id="factPolarity">
+            <option value="good">good</option>
+            <option value="risk">risk</option>
+            <option value="neutral">neutral</option>
+          </select>
+          <button type="submit" class="send-btn">Save fact</button>
+        </form>
+        <div class="fact-grid" id="factGrid"><!-- filled by JS --></div>
+      </div>
+    </section>
+
+    <!-- ---- RULE BASE PANEL ---- -->
+    <section class="panel" id="panel-rules">
+      <div class="panel-scroll">
+        <p class="panel-intro">The declarative Rule Base: every IF → THEN production the reasoning engine can fire.</p>
+        <div class="kb-toolbar">
+          <input type="search" id="ruleSearch" placeholder="Filter rules…">
+          <button class="ghost-btn" id="addRuleBtn" type="button">+ Add rule</button>
+        </div>
+        <form id="addRuleForm" class="inline-form" hidden>
+          <input type="text" id="ruleName" placeholder="Rule name" required>
+          <input type="text" id="ruleIf" placeholder="if_concept" required>
+          <input type="text" id="ruleThen" placeholder="then_concept" required>
+          <input type="text" id="ruleDesc" placeholder="Description">
+          <button type="submit" class="send-btn">Save rule</button>
+        </form>
+        <div class="rule-list" id="ruleList"><!-- filled by JS --></div>
+      </div>
+    </section>
+
+    <!-- ---- HISTORY PANEL ---- -->
+    <section class="panel" id="panel-history">
+      <div class="panel-scroll">
+        <div class="kb-toolbar">
+          <input type="search" id="historySearch" placeholder="Search conversation history…">
+          <button class="ghost-btn" id="exportBtn" type="button">⭳ Export</button>
+          <button class="ghost-btn danger" id="clearHistBtn" type="button">Clear history</button>
+        </div>
+        <div class="history-list" id="historyList"><!-- filled by JS --></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ RIGHT RAIL: REASONING TRACE ============ -->
+  <aside class="rail rail-right" id="tracePanel">
+    <div class="trace-header">
+      <span>Reasoning trace</span>
+      <button class="trace-close" id="traceClose" aria-label="Close reasoning trace">✕</button>
+    </div>
+    <div class="trace-body" id="traceBody">
+      <p class="trace-empty">Ask something in the chat, or run the checklist, and the forward-chaining steps that produced the answer will appear here — numbered, in order, with the rule that fired between each step.</p>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim"></div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
